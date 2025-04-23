@@ -65,8 +65,11 @@ def map_sysid(t, u, y, na, nb, pred):
     vCritere_2 = []
     m_map = GEKKO()
     #flag = False
-    for i in range(1, na + 1):
-        for j in range(1, nb + 1):
+    namin = int(1)   #1
+    nbmin = int(1)   #1
+
+    for i in range(namin, na + 1):
+        for j in range(nbmin, nb + 1):
             #if flag:
             #    break
             yp, p, K = m_map.sysid(t, u, y, i, j, pred=pred)
@@ -175,6 +178,55 @@ def resolution_ARX_MISO(A, B, C, vU, offsetY):
     return vY
 
 
+def resolution_ARX_MIMO(A, B, C, vU, offsetY):
+    #New version 18_04_2025
+
+    #Input parameters
+    #B[0] = n output
+    #B[1] = nb
+    #B[2] = n input
+    #A[0] = na
+    #A[1] = n output
+
+    n_Output = A.shape[1]
+    n_Input  = B.shape[2]
+    n_na     = A.shape[0]
+    n_nb     = B.shape[1]
+
+    vY = np.zeros(shape=(vU.shape[0], n_Output), dtype=float)
+    #vY[0, :] = offsetY    #for k in range(n_Output):    #    vY[0, k] += offsetY[k]
+
+    starter = max(n_na, n_nb)
+
+    vY[0:starter, :] = offsetY    #for k in range(n_Output):    #    vY[0, k] += offsetY[k]
+
+    for i in range(starter, vU.shape[0]):                                   # Balayage de chaque valeur temporelle
+    #for i in range(1, vU.shape[0]):                                         # Balayage de chaque valeur temporelle
+        for k in range(n_Output):                                           # Pour chaque grandeur de sortie
+
+            for l in range(n_Input):                                        # Pour chaque grandeur d'entrée
+                for j in range(n_nb):                                       # nb
+                    if i - j > 0:
+                        #print('B', B[k, j, l])
+                        vY[i, k] += B[k, j, l] * vU[i - j - 1, l]
+
+            for j in range(n_na):                                           # nb
+                if i - j > 0:
+                    #print('A', A[j, k])
+                    vY[i, k] += A[j, k] * vY[i - j - 1, k]
+
+            if not C.size:
+                pass
+            else:
+                #print('C', C[k])
+                vY[i, k] += C[k]
+
+    #for k in range(n_Output):
+    #    vY[:, k] += offsetY[k]
+
+    return vY
+
+
 def GEKKO_solve_sysid(u, y, alpha, beta, gamma):
     ypred = np.zeros(shape=(u.shape[0], alpha.shape[1]), dtype=float)
     # Predict using prior model values
@@ -256,7 +308,7 @@ def calculation():
 
     #Préparation dataset
     df_dtime = df_time[1] - df_time[0]
-    n_value = 10
+    n_value = 2
     for i in range(n_value):
         df_time = np.append(df_time, [df_time[-1] + df_dtime], axis=0)
     df_flux = np.insert(df_flux, [0], np.zeros((n_value)))
@@ -268,10 +320,7 @@ def calculation():
     df_flux = df_flux.reshape(df_flux.shape[0], 1)
     df_temp = df_temp.reshape(df_temp.shape[0], 1)
 
-    #yARX_homemade1 = resolution_ARX_SISO(A, B, C, df_flux, df_temp[0])
-    #yARX_homemade2 = resolution_ARX_MISO(A, B, C, df_flux, df_temp[0])
-
-    i_opt, j_opt, yARX_opt, p_opt, K_opt = map_sysid(t=df_time, u=df_flux, y=df_temp, na=5, nb=5, pred='meas')
+    i_opt, j_opt, yARX_opt, p_opt, K_opt = map_sysid(t=df_time, u=df_flux, y=df_temp, na=2, nb=2, pred='meas')
     yARX_opt = yARX_opt.flatten()
     print('ARX GEKKO optimal')
     for keys, value in p_opt.items():
@@ -281,6 +330,11 @@ def calculation():
     yARX_homemade1 = resolution_ARX_SISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0])
     yARX_homemade2 = resolution_ARX_MISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0:p_opt['a'].shape[0]])
     yARX_homemade3 = resolution_ARX_MISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0])
+    yARX_homemade4 = resolution_ARX_MIMO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0])
+
+    print('test 1', np.allclose(yARX_homemade1, yARX_homemade2))
+    print('test 2', np.allclose(yARX_homemade1, yARX_homemade3))
+    print('test 3', np.allclose(yARX_homemade1, yARX_homemade4))
 
     # Create GEKKO model
     m = GEKKO(remote=False)
@@ -297,7 +351,7 @@ def calculation():
     u[0].value = df_flux[:nb].tolist()  # First `nb` known inputs
     '''
     u[0].value = df_flux.flatten().tolist()
-    y[0].value = df_temp.flatten()[0].tolist() * 0- 0 * df_temp_offset * 1
+    y[0].value = df_temp.flatten()[0].tolist() * 0 - 0 * df_temp_offset * 1
     m.time = df_time.flatten().tolist() # np.linspace(start=0, stop=tf, num=int(tf / dt) + 1)
     m.options.IMODE     = 4     # 4
     m.options.NODES     = 2     # 2
@@ -319,7 +373,6 @@ def calculation():
     m.solve(disp=False, debug=False)
     #m.solve(disp=True, debug=True)
     y[0] = list(np.array(y[0]) + 1 * df_temp_offset)  #  #list(np.array(y[0]) + df_temp_offset * np.ones((len(y[0]))))
-
     y_1_cast = np.array(y, dtype=float).T
 
     n = GEKKO(remote=False)
@@ -349,12 +402,13 @@ def calculation():
     plt.plot(df_time, yARX_homemade1, label='yARX_homemade1', color='purple', ls='-', marker='x', lw=1, markersize=1)
     plt.plot(df_time, yARX_homemade2, label='yARX_homemade2', color='green', ls='-', marker='x', lw=1, markersize=1)
     plt.plot(df_time, yARX_homemade3, label='yARX_homemade3', color='blue', ls='-', marker='x', lw=1, markersize=1)
+    plt.plot(df_time, yARX_homemade4, label='yARX_homemade4', color='blue', ls='-', marker='x', lw=1, markersize=1)
     plt.grid(True, lw=0.2, ls='--', color='gray')
     plt.ylabel('Température [°C]')
     plt.xlabel('Time (sec)')
     plt.legend()
     ax0 = plt.gca().twinx()  # Set a second y-axis
-    ax0.plot(df_time, df_flux, label='Flux', color='red', ls='--', lw=1)
+    ax0.plot(df_time, df_flux, label='Flux', color='red', ls='--', lw=1, marker='x', markersize=1)
     plt.grid(True, lw=0.2, ls='--', color='gray')
     plt.legend()
     plt.ylabel('Flux [W]')
