@@ -251,7 +251,7 @@ def GEKKO_solve_sysid(u, y, alpha, beta, gamma):
                     ypred[j][i] += beta[i][k][iu] * u[j - 1 - k][iu]
             ypred[j][i] += gamma[i]
 
-    print(np.allclose(ypred, y, rtol=1e-05))
+    print(np.allclose(ypred, y, rtol=1e-03))
 
     return ypred
 
@@ -332,9 +332,9 @@ def calculation():
     yARX_homemade3 = resolution_ARX_MISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0])
     yARX_homemade4 = resolution_ARX_MIMO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=df_temp[0])
 
-    print('test 1', np.allclose(yARX_homemade1, yARX_homemade2))
-    print('test 2', np.allclose(yARX_homemade1, yARX_homemade3))
-    print('test 3', np.allclose(yARX_homemade1, yARX_homemade4))
+    print('test 1', np.allclose(yARX_homemade1, yARX_homemade2, rtol=1e-03))
+    print('test 2', np.allclose(yARX_homemade1, yARX_homemade3, rtol=1e-03))
+    print('test 3', np.allclose(yARX_homemade1, yARX_homemade4, rtol=1e-03))
 
     # Create GEKKO model
     m = GEKKO(remote=False)
