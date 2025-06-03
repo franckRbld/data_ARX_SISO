@@ -65,16 +65,19 @@ u1 = np.zeros(100 + 1)  # tf + 1)
 u2 = u1.copy()
 u1[20:] = 3.0
 u2[40:] = 5.0
-u[0].value = u1
-u[1].value = u2
+u1[:] += 10.0
+u2[:] += 10.0
+
+u[0].value = u1.copy()
+u[1].value = u2.copy()
 
 #Test
 #'''
-y[0].value = 0.0 + 5 * 0
-y[1].value = 0.0 + -5 * 0
+y[0].value = 5 * 0
+y[1].value = 5 * 0
 #'''
 
-m.time = np.linspace(start=0, stop=tf, num=u1.shape[0] - 1 + 1)
+m.time = np.linspace(start=0, stop=tf, num=u1.shape[0])
 m.options.imode = 4
 m.options.nodes = 2
 m.solve(disp=False)
@@ -84,17 +87,32 @@ t2 = np.array(u, dtype=float).T
 t3 = np.array(y, dtype=float).T
 y_1, p_1, k_1 = m.sysid(t=t1, u=t2, y=t3, na=2, nb=2, pred='meas', shift='calc')  # 'meas' for ARX regression form, explicit solution
 
+print('Vérification:\t', max(abs(y_1[:, 0] - y[0].value)))
+print('Vérification:\t', max(abs(y_1[:, 1] - y[1].value)))
+
 plt.figure(1)
-plt.subplot(2, 1, 1)
+plt.subplot(3, 1, 1)
 plt.plot(m.time, u[0].value, 'r-', label=r'$u_0$')
 plt.plot(m.time, u[1].value, 'b--', label=r'$u_1$')
 plt.ylabel('MV')
 plt.legend(loc='best')
-plt.subplot(2, 1, 2)
+plt.tight_layout()
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 2)
 plt.plot(m.time, y[0].value, 'r:', label=r'$y_0$')
 plt.plot(m.time, y[1].value, 'b.-', label=r'$y_1$')
 plt.ylabel('CV')
 plt.xlabel('Time (sec)')
 plt.legend(loc='best')
 plt.tight_layout()
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 3)
+plt.plot(m.time, y_1[:, 0], 'r:', label=r'$y_0$')
+plt.plot(m.time, y_1[:, 1], 'b.-', label=r'$y_1$')
+plt.ylabel('m.sysid CV')
+plt.xlabel('Time (sec)')
+plt.legend(loc='best')
+plt.tight_layout()
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
 plt.show()
+

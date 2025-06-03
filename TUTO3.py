@@ -8,7 +8,7 @@ url = 'http://apmonitor.com/do/uploads/Main/tclab_dyn_data2.txt'
 data = pd.read_csv(url)
 t = data['Time']
 u = data[['H1', 'H2']].values
-u = data[['H1']].values
+#u = data[['H1']].values
 y = data[['T1', 'T2']].values
 y = data[['T1']].values
 
@@ -56,7 +56,7 @@ def resolution_ARX_SISO(A, B, C, vU, offsetY):
                 #print(B[j])
                 #print(i - j - 1)
                 #print(vU[i - j - 1])
-        if C is None or not C:
+        if C is None or not C.all():
             pass
         else:
             vY[i] += C[0]
@@ -144,13 +144,13 @@ def map_sysid(t, u, y, na, nb, pred):           #Methode ARX (system identificat
     vCritere_1 = []
     vCritere_2 = []
     m_map = GEKKO()
-    namin = int(0 * 5 + 1)   #1
-    nbmin = int(0 * 5 + 1)   #1
+    namin = 1
+    nbmin = 1
     for i in range(namin, namin + na + 1):
         for j in range(nbmin, nbmin + nb + 1):
-            print('i', i, '\tj', j)
+            #print('i', i, '\tj', j)
             yp, p, K = m_map.sysid(t=t, u=u, y=y, na=i, nb=j, nk=0, shift='calc', pred=pred)
-            Criteria_1 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp)
+            Criteria_1 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp, Choice=1)
             Criteria_2 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp, Choice=2)
             vCritere_1.append(Criteria_1)
             vCritere_2.append(Criteria_2)
@@ -178,24 +178,38 @@ for a, b in p_opt.items():
 yp_Homemade1 = resolution_ARX_SISO(A=liste2[0], B=liste2[1], C=liste2[2], vU=u, offsetY=y[0, :])
 yp_Homemade2 = resolution_ARX_MIMO(A=liste2[0], B=liste2[1], C=liste2[2], vU=u, offsetY=y[0, :])
 
-yp, p, K = m.sysid(t, u, y, na, nb, pred='meas')
+yp, p, K = m.sysid(t, u, y, na=i_opt, nb=i_opt, nk=0, pred='meas')
 print('p')
 for keys, value in p.items():
     print(keys, value)
 
-plt.figure(figsize=(7, 4))
-plt.subplot(2, 1, 1)
+plt.figure(figsize=(10, 8), tight_layout=True)
+plt.subplot(3, 1, 1)
 plt.plot(t, u, label=r'$Heater_1$')
 plt.legend([r'$Heater_1$', r'$Heater_2$'])
 plt.ylabel('Heaters')
-plt.subplot(2, 1, 2)
-plt.plot(t, y)
-plt.plot(t, yp_opt, '--', lw=1)
-plt.plot(t, yp_Homemade1, '--', lw=1)
-plt.plot(t, yp_Homemade2, '--', lw=1)
-plt.legend([r'$T_{meas}$', r'$T_{arx gekko}$', r'$T_{arx HM1}$', r'$T_{arx HM2}$'])
+plt.xlabel('Time (sec)')
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 2)
+for i in range(y.shape[1]):
+    plt.plot(t, y[:, i], label=r'$T_{meas}$')
+    plt.plot(t, yp_opt[:, i], '--', lw=1, marker='o', markersize=2, label=r'$T_{arx gekko}$')
+    #plt.plot(t, yp_Homemade1[:, i], '--', lw=1, marker='x', markersize=2, label=r'$T_{arx HM1}$')
+    plt.plot(t, yp_Homemade2[:, i], '--', lw=1, marker='*', markersize=2, label=r'$T_{arx HM2}$')
+plt.legend()
 plt.ylabel('Temperature (°C)')
 plt.xlabel('Time (sec)')
-plt.tight_layout()
-plt.savefig('test.png', dpi=300)
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 3)
+for i in range(y.shape[1]):
+    plt.plot(t, y[:, i] - yp_opt[:, i], '--', lw=1, label=r'$T_{meas} - T_{arx gekko}$', marker='o', markersize=1)
+    #plt.plot(t, y[:, i] - yp_Homemade1[:, i], '--', lw=1, label=r'$T_{meas} - T_{arx SISO}$')
+    plt.plot(t, y[:, i] - yp_Homemade2[:, i], '--', lw=1, label=r'$T_{meas} - T_{arx MIMO}$')
+    #plt.plot(t, yp_opt[:, i] - yp_Homemade1[:, i], '--', lw=1, label=r'$T_{arx gekko} - T_{arx SISO}$')
+plt.legend()
+plt.ylabel('Ecart Temperature (°C)')
+plt.xlabel('Time (sec)')
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+
+plt.savefig('TUTO3.png', dpi=300)
 plt.show()

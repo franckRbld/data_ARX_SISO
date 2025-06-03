@@ -14,9 +14,9 @@ y = data['T1']
 m = GEKKO()
 
 # system identification
-na = 2 # output coefficients
-nb = 2 # input coefficients
-yp, p, K = m.sysid(t, u, y, na, nb, pred='meas')
+na = 1  # output coefficients
+nb = 1  # input coefficients
+yp, p, K = m.sysid(t=t, u=u, y=y, na=na, nb=nb, pred='meas')
 
 for keys, value in p.items():
     print(keys, value)

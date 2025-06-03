@@ -26,8 +26,8 @@ test3_ = test3.values
 m = GEKKO()
 
 # system identification
-na = 3  # output coefficients
-nb = 3  # input coefficients
+na = 6  # output coefficients
+nb = 6  # input coefficients
 
 
 def funcCriteria(nA, nB, nValue, vSortie, vSortieARX, Choice=None):
@@ -65,12 +65,12 @@ def map_sysid(t, u, y, na, nb, pred):
         for j in range(1, nb + 1):
             #if flag:
             #    break
-            yp, p, K = m_map.sysid(t, u, y, i, j, pred=pred, diaglevel=1)
-            Criteria_1 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp)
+            yp, p, K = m_map.sysid(t, u, y, i, j, pred=pred, diaglevel=0)
+            Criteria_1 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp, Choice=1)
             Criteria_2 = funcCriteria(nA=i, nB=j, nValue=u.shape[0], vSortie=y, vSortieARX=yp, Choice=2)
             vCritere_1.append(Criteria_1)
             vCritere_2.append(Criteria_2)
-            if Criteria_1 * 1 + Criteria_2 * 0 < optimal:
+            if Criteria_1 * 0 + Criteria_2 * 1 < optimal:
                 optimal = Criteria_1.copy()
                 i_opt = i
                 j_opt = j
@@ -82,28 +82,40 @@ def map_sysid(t, u, y, na, nb, pred):
 
 
 i_opt, j_opt, yp_opt, p_opt, K_opt = map_sysid(t, u, y, na, nb, pred='meas')
-
 yp, p, K = m.sysid(t, u, y, na, nb, pred='meas')
 
-print('p_opt')
+print('-------------------------------------\tp_opt')
 for keys, value in p_opt.items():
     print(keys, value)
-print('p')
+print('-------------------------------------\tp')
 for keys, value in p.items():
     print(keys, value)
 
-plt.figure(figsize=(7, 4))
-plt.subplot(2, 1, 1)
+plt.figure(figsize=(10, 7), tight_layout=True)
+plt.subplot(3, 1, 1)
 plt.plot(t, u, label=r'$Heater_1$')
 plt.legend([r'$Heater_1$', r'$Heater_2$'])
 plt.ylabel('Heaters')
-plt.subplot(2, 1, 2)
-plt.plot(t, y)
-#plt.plot(t, yp, '--')
-plt.plot(t, yp_opt, '--')
-plt.legend([r'$T1_{meas}$', r'$T1_{pred}$', r'$T1_{pred}opt$'])
+plt.xlabel('Time (sec)')
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 2)
+for i in range(y.shape[1]):
+    plt.plot(t, y[:, i], label=r'$T1_{meas}$')
+    plt.plot(t, yp[:, i], '--', marker='o', markersize=2, label=r'$T1_{arx gekko}$')
+    plt.plot(t, yp_opt[:, i], '--', marker='*', markersize=2, label=r'$T1_{arx gekko}opt$')
+#plt.legend([r'$T1_{meas}$', r'$T1_{pred}$', r'$T1_{pred}opt$'])
+plt.legend()
 plt.ylabel('Temperature (°C)')
 plt.xlabel('Time (sec)')
-plt.tight_layout()
-plt.savefig('test.png', dpi=300)
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+plt.subplot(3, 1, 3)
+for i in range(y.shape[1]):
+    plt.plot(t, y[:, i] - yp[:, i], '--', lw=1, label=r'$T_{meas} - T_{arx gekko}$', marker='o', markersize=1)
+    plt.plot(t, y[:, i] - yp_opt[:, i], '--', lw=1, label=r'$T_{meas} - T_{arx gekko}opt$$')
+plt.legend()
+plt.ylabel('Ecart Temperature (°C)')
+plt.xlabel('Time (sec)')
+plt.grid(True, alpha=0.5, linestyle='--', linewidth=1.0)
+
+plt.savefig('TUTO3_test.png', dpi=300)
 plt.show()
