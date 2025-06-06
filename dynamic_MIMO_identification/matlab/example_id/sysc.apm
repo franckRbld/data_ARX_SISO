@@ -1,0 +1,76 @@
+
+Objects 
+  sysc = lti
+End Objects 
+
+Connections
+  u[1:2] = sysc.u[1:2]
+  x[1:6] = sysc.x[1:6]
+  y[1:2] = sysc.y[1:2]
+End Connections
+
+Model 
+  Parameters 
+    u[1:2] = 0
+  End Parameters 
+
+  Variables 
+    x[1:6] = 0
+    y[1:2] = 0
+  End Variables 
+
+  Equations 
+    ! add any additional equations here 
+  End Equations 
+End Model 
+
+! dimensions
+! (nx1) = (nxn)*(nx1) + (nxm)*(mx1)
+! (px1) = (pxn)*(nx1) + (pxm)*(mx1)
+!
+! discrete form with sampling time = 1.000000
+! x[k+1] = A * x[k] + B * u[k]
+!   y[k] = C * x[k] + D * u[k]
+File sysc.txt
+  sparse, discrete  ! dense/sparse, continuous/discrete
+  2      ! m=number of inputs
+  6      ! n=number of states
+  2      ! p=number of outputs
+End File
+
+File sysc.a.txt 
+   2 1 0.003906
+   3 2 0.500000
+   1 3 0.005120
+   2 3 -0.479650
+   3 3 1.001940
+   5 4 0.125000
+   6 5 0.500000
+   4 6 -0.179056
+   5 6 0.425708
+   6 6 0.523940
+End File 
+
+File sysc.b.txt 
+   1 1 0.000003
+   2 1 -0.029171
+   3 1 0.036888
+   4 1 0.076288
+   5 1 -0.169124
+   6 1 -0.331799
+   1 2 -37.339040
+   2 2 0.368878
+   3 2 -0.000000
+   4 2 0.152560
+   5 2 -0.338250
+   6 2 -0.663598
+End File 
+
+File sysc.c.txt 
+   1 3 32.000000
+   2 6 1.000000
+End File 
+
+File sysc.d.txt 
+   1 1 0.000000
+End File 
