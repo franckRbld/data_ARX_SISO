@@ -55,8 +55,8 @@ dataTemp = np.insert(dataTemp, [0], dataTemp[0] * np.ones((n_value)))
 '''
 
 
-CoefficientA = 2
-CoefficientB = 2
+CoefficientA = 3
+CoefficientB = 5
 CoefficientC = 1
 
 matriceCoefficient_Ai_Bi = np.zeros(shape=(dataTime.shape[0] - 1, CoefficientA + CoefficientB + CoefficientC), dtype=float)
@@ -149,17 +149,40 @@ print('c', myCoefC)
 
 
 m = GEKKO(remote=False)
-y_1, p_1, k_1 = m.sysid(t=dataTime, u=dataFlux, y=dataTemp, na=CoefficientA, nb=CoefficientB, nk=0, shift='calc', pred='meas')        # 'meas' for ARX regression form, explicit solution
+y_1, p_1, k_1 = m.sysid(t=dataTime, u=dataFlux, y=dataTemp, na=CoefficientA, nb=CoefficientB, nk=0, scale=True, shift='calc', pred='meas')        # 'meas' for ARX regression form, explicit solution  #scale = False si on ne veut pas de normalisation
 print('ARX GEKKO')
 for keys, value in p_1.items():
     print(keys, value)
 print('\n')
 
-myOffset = dataTemp[0:myCoefA.shape[0]].reshape(myCoefA.shape[0], 1)
-myOffset_ = dataTemp[0] * np.ones((myCoefA.shape[0])).reshape(myCoefA.shape[0], 1)
+
+myCoefmax_ = max(myCoefA.shape[0], myCoefB.shape[0])
+myOffset = dataTemp[0:myCoefmax_].reshape(myCoefmax_, 1)
+myOffset_ = dataTemp[0] * np.ones((myCoefmax_)).reshape(myCoefmax_, 1)          # ne pas utiliser cette initialisation
 
 dataTemp_ARX = resolution_ARX_SISO(A=myCoefA, B=myCoefB, C=myCoefC, vU=dataFlux.reshape(dataFlux.shape[0], 1), offsetY=myOffset)
+
+
+dataFlux_min = min(dataFlux)
+dataFlux_max = max(dataFlux)
+dataFlux_scaled = (dataFlux - dataFlux_min) / (dataFlux_max - dataFlux_min)
+dataTemp_min = min(dataTemp)
+dataTemp_max = max(dataTemp)
+dataTemp_scaled = (dataTemp - dataTemp_min) / (dataTemp_max - dataTemp_min)
+
+
 dataTemp_ARX_ = resolution_ARX_SISO(A=p_1['a'], B=p_1['b'], C=p_1['c'], vU=dataFlux.reshape(dataFlux.shape[0], 1), offsetY=myOffset)
+
+y_2, p_2, k_2 = m.sysid(t=dataTime, u=dataFlux_scaled, y=dataTemp_scaled, na=CoefficientA, nb=CoefficientB, nk=0, scale=False, shift='calc', pred='meas')
+y_2 = y_2 * (dataTemp_max - dataTemp_min) + dataTemp_min
+
+
+dataTemp_ARX__ = dataTemp_min + (dataTemp_max - dataTemp_min) * resolution_ARX_SISO(
+                      A=p_2['a'],
+                      B=p_2['b'],
+                      C=p_2['c'],
+                      vU=dataFlux_scaled.reshape(dataFlux.shape[0], 1),
+                      offsetY=dataTemp_scaled[0:myCoefmax_].reshape(myCoefmax_, 1))
 
 '''
 np.set_printoptions(precision=7)
@@ -183,8 +206,9 @@ plt.ylabel('Flux [W]')
 plt.figure(num='Figure 1: ARX', figsize=(9, 7), tight_layout=True)
 plt.plot(dataTime, dataTemp, label=r'$y_{Reference}$', lw=1, ls='-')
 plt.plot(dataTime, dataTemp_ARX.flatten(), label=r'$y_{ARX(HOMEMADE)}$', lw=1, ls='--')
-plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
-plt.plot(dataTime, dataTemp_ARX_.flatten(), label=r'$y_{ARX(GEKKO)(HOMEMADE)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
+plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=2, color='black')
+plt.plot(dataTime, dataTemp_ARX_.flatten(), label=r'$y_{ARX(GEKKO)(HOMEMADE)}$', lw=1, ls='--', marker='x', markersize=2, color='black')
+plt.plot(dataTime, y_2.flatten(), label=r'$y_{ARX_(GEKKO SCALED)}$', lw=1, ls='--', marker='x', markersize=2, color='orange')
 plt.xlabel('Time (sec)')
 plt.ylabel('Temperature (°C)')
 plt.legend(loc='upper right')
@@ -198,17 +222,19 @@ plt.annotate(text='ARX\n'
 '''
 ax1 = plt.gca().twinx()  # Set a second y-axis
 ax1.set_ylabel('Delta_Température [°C]')  # Label for the second y-axis
-ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX(HOMEMADE)} - y_{Reference}$', color='green', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX(HOMEMADE)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
 ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
-ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
+ax1.plot(dataTime, y_2.flatten() - dataTemp, label=r'$y_{ARX(GEKKO SCALED)} - y_{Reference}$', ls='-', markersize=2, marker='o', lw=1)
 ax1.legend(loc='lower right')
 
 
 plt.figure(num='Figure 2: ARX', figsize=(9, 7), tight_layout=True)
 plt.plot(dataTime, dataTemp, label=r'$y_{Reference}$', lw=1, ls='-')
 #plt.plot(dataTime, dataTemp_ARX.flatten(), label=r'$y_{ARX}$', lw=1, ls='--')
-plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
-plt.plot(dataTime, dataTemp_ARX_.flatten(), label=r'$y_{ARX(GEKKO)(HOMEMADE)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
+plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=2, color='black')
+plt.plot(dataTime, dataTemp_ARX_.flatten(), label=r'$y_{ARX(GEKKO)(HOMEMADE)}$', lw=1, ls='--', marker='x', markersize=2, color='black')
+plt.plot(dataTime, y_2.flatten(), label=r'$y_{ARX_(GEKKO SCALED)}$', lw=1, ls='--', marker='x', markersize=2, color='orange')
 plt.xlabel('Time (sec)')
 plt.ylabel('Temperature (°C)')
 plt.legend(loc='upper right')
@@ -222,8 +248,9 @@ plt.annotate(text='ARX\n'
 '''
 ax1 = plt.gca().twinx()  # Set a second y-axis
 ax1.set_ylabel('Delta_Température [°C]')  # Label for the second y-axis
-#ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX} - y_{Reference}$', color='green', ls='-', markersize=0.5, marker='x', lw=1)
-ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
-ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
+#ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=5, marker='x', lw=1)
+ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
+ax1.plot(dataTime, y_2.flatten() - dataTemp, label=r'$y_{ARX(GEKKO SCALED)} - y_{Reference}$', ls='-', markersize=2, marker='o', lw=1)
 ax1.legend(loc='lower right')
 plt.show()

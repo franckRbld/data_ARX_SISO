@@ -315,7 +315,7 @@ def calculation():
     print('\n')
 
     myOffsetY  = df_temp[0]
-    myOffsetY_ = df_temp[0:p_opt['a'].shape[0]]
+    myOffsetY_ = df_temp[0:max(p_opt['a'].shape[0], p_opt['b'].shape[0])]
 
     yARX_homemade1 = resolution_ARX_SISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=myOffsetY)
     yARX_homemade2 = resolution_ARX_SISO(A=p_opt['a'], B=p_opt['b'], C=p_opt['c'], vU=df_flux, offsetY=myOffsetY_)
