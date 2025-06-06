@@ -34,20 +34,33 @@ def myARX(vFlux, vTemp, coefA, coefB, coefC):
     return c_Solution
 
 decimals = 30
-data = pd.read_excel('data.xlsx').values
+data = pd.read_excel('data.xlsx', sheet_name='Tabelle1', header=0).values
+#data = pd.read_excel('data.xlsx', sheet_name='Tabelle2', header=0).values
 data = np.round(data, decimals=decimals)
 #print(data.shape)
+
 
 dataTime = data[:, 0]
 dataFlux = data[:, 1]
 dataTemp = data[:, 2]
 
+'''
+# -------------------------------------------- Préparation dataset Stabilisation
+n_value = 1
+for i in range(n_value):
+    dataTime = np.append(dataTime, [dataTime[-1] + dataTime[1] - dataTime[0]], axis=0)
+# df_time = np.linspace(start=df_time[0], stop=df_time[-1], num=df_time.shape[0])
+dataFlux = np.insert(dataFlux, [0], np.zeros((n_value)))
+dataTemp = np.insert(dataTemp, [0], dataTemp[0] * np.ones((n_value)))
+'''
+
+
 CoefficientA = 2
 CoefficientB = 2
 CoefficientC = 1
 
-matriceCoefficient_Ai_Bi = np.zeros(shape=(data.shape[0] - 1, CoefficientA + CoefficientB + CoefficientC), dtype=float)
-inputVector = np.zeros(shape=(data.shape[0]), dtype=float)
+matriceCoefficient_Ai_Bi = np.zeros(shape=(dataTime.shape[0] - 1, CoefficientA + CoefficientB + CoefficientC), dtype=float)
+inputVector = np.zeros(shape=(dataTime.shape[0]), dtype=float)
 inputVector[:] = dataTemp[:] - dataTemp[0]
 
 k = int(0)
@@ -61,7 +74,7 @@ for i in range(CoefficientB):
 if CoefficientC == 1:
     matriceCoefficient_Ai_Bi[:, CoefficientA + CoefficientB] = 1
 
-matriceCoefficient_Y = np.zeros(shape=(data.shape[0] - 1, 1), dtype=float)
+matriceCoefficient_Y = np.zeros(shape=(dataTime.shape[0] - 1, 1), dtype=float)
 matriceCoefficient_Y[:, 0] = inputVector[1:].T.copy()
 
 
@@ -70,7 +83,7 @@ np.set_printoptions(precision=myRound)
 print('(AT.A)\n', matriceCoefficient_Ai_Bi.T.dot(matriceCoefficient_Ai_Bi))
 print('np.diag(AT.A)\n', np.diag(matriceCoefficient_Ai_Bi.T.dot(matriceCoefficient_Ai_Bi)))
 print('\n')
-np.set_printoptions(precision=None)
+np.set_printoptions(precision=14)
 
 
 Coefficient_Solution1 = (
@@ -126,13 +139,6 @@ if CoefficientC == 1:
 print('\n')
 '''
 
-m = GEKKO(remote=False)
-y_1, p_1, k_1 = m.sysid(t=dataTime, u=dataFlux, y=dataTemp, na=CoefficientA, nb=CoefficientB, nk=0, shift='calc', pred='meas')        # 'meas' for ARX regression form, explicit solution
-print('ARX GEKKO')
-for keys, value in p_1.items():
-    print(keys, value)
-print('\n')
-
 myCoefA = Coefficient_Solution1[:CoefficientA]
 myCoefB = Coefficient_Solution1[CoefficientA:CoefficientA+CoefficientB]
 myCoefC = Coefficient_Solution1[CoefficientA+CoefficientB:CoefficientA+CoefficientB+CoefficientC]
@@ -141,11 +147,64 @@ print('a', myCoefA)
 print('b', myCoefB)
 print('c', myCoefC)
 
+
+m = GEKKO(remote=False)
+y_1, p_1, k_1 = m.sysid(t=dataTime, u=dataFlux, y=dataTemp, na=CoefficientA, nb=CoefficientB, nk=0, shift='calc', pred='meas')        # 'meas' for ARX regression form, explicit solution
+print('ARX GEKKO')
+for keys, value in p_1.items():
+    print(keys, value)
+print('\n')
+
 myOffset = dataTemp[0:myCoefA.shape[0]].reshape(myCoefA.shape[0], 1)
+myOffset_ = dataTemp[0] * np.ones((myCoefA.shape[0])).reshape(myCoefA.shape[0], 1)
+
 dataTemp_ARX = resolution_ARX_SISO(A=myCoefA, B=myCoefB, C=myCoefC, vU=dataFlux.reshape(dataFlux.shape[0], 1), offsetY=myOffset)
 dataTemp_ARX_ = resolution_ARX_SISO(A=p_1['a'], B=p_1['b'], C=p_1['c'], vU=dataFlux.reshape(dataFlux.shape[0], 1), offsetY=myOffset)
 
-plt.figure(num='Figure 1: ARX', figsize=(8, 6), tight_layout=True)
+'''
+np.set_printoptions(precision=7)
+print('\n', y_1[:10])
+print('\n', dataTemp_ARX_[:10])
+'''
+
+plt.figure(num='Figure 0: ARX', figsize=(9, 7), tight_layout=True)
+plt.plot(dataTime, dataTemp, label=r'$y_{Reference}$', lw=1, ls='-')
+plt.xlabel('Time (sec)')
+plt.ylabel('Temperature (°C)')
+plt.legend(loc='upper right')
+plt.grid(True, linestyle='--', linewidth=0.5)
+ax0 = plt.gca().twinx()  # Set a second y-axis
+ax0.plot(dataTime, dataFlux, label='Flux', color='red', ls='--', lw=1, marker='x', markersize=1)
+plt.grid(True, lw=0.2, ls='--', color='gray')
+plt.legend(loc='lower right')
+plt.ylabel('Flux [W]')
+
+
+plt.figure(num='Figure 1: ARX', figsize=(9, 7), tight_layout=True)
+plt.plot(dataTime, dataTemp, label=r'$y_{Reference}$', lw=1, ls='-')
+plt.plot(dataTime, dataTemp_ARX.flatten(), label=r'$y_{ARX(HOMEMADE)}$', lw=1, ls='--')
+plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
+plt.plot(dataTime, dataTemp_ARX_.flatten(), label=r'$y_{ARX(GEKKO)(HOMEMADE)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
+plt.xlabel('Time (sec)')
+plt.ylabel('Temperature (°C)')
+plt.legend(loc='upper right')
+plt.grid(True, linestyle='--', linewidth=0.5)
+'''
+plt.annotate(text='ARX\n'
+             + 'a' + str(myCoefA) + '\n'
+             + 'b' + str(myCoefB) + '\n'
+             + 'c' + str(myCoefC) + '\n', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=5, ha='left', va='top',
+             alpha=1.0, bbox=dict(boxstyle='square', facecolor='white', edgecolor='black', linewidth=0.5))
+'''
+ax1 = plt.gca().twinx()  # Set a second y-axis
+ax1.set_ylabel('Delta_Température [°C]')  # Label for the second y-axis
+ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX(HOMEMADE)} - y_{Reference}$', color='green', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
+ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.legend(loc='lower right')
+
+
+plt.figure(num='Figure 2: ARX', figsize=(9, 7), tight_layout=True)
 plt.plot(dataTime, dataTemp, label=r'$y_{Reference}$', lw=1, ls='-')
 #plt.plot(dataTime, dataTemp_ARX.flatten(), label=r'$y_{ARX}$', lw=1, ls='--')
 plt.plot(dataTime, y_1.flatten(), label=r'$y_{ARX_(GEKKO)}$', lw=1, ls='--', marker='x', markersize=0.5, color='black')
@@ -164,7 +223,7 @@ plt.annotate(text='ARX\n'
 ax1 = plt.gca().twinx()  # Set a second y-axis
 ax1.set_ylabel('Delta_Température [°C]')  # Label for the second y-axis
 #ax1.plot(dataTime, dataTemp_ARX.flatten() - dataTemp, label=r'$y_{ARX} - y_{Reference}$', color='green', ls='-', markersize=0.5, marker='x', lw=1)
-ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
+ax1.plot(dataTime, y_1.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)} - y_{Reference}$', ls='-', markersize=2, marker='x', lw=1)
 ax1.plot(dataTime, dataTemp_ARX_.flatten() - dataTemp, label=r'$y_{ARX(GEKKO)(HOMEMADE)} - y_{Reference}$', ls='-', markersize=0.5, marker='x', lw=1)
 ax1.legend(loc='lower right')
 plt.show()

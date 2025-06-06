@@ -279,7 +279,7 @@ def calculation():
     print('\n')
     '''
 
-    # -------------------------------------------- load inputs
+    # -------------------------------------------- load inputs Stabilisation
     df = pd.read_excel(io='data.xlsx', sheet_name='Tabelle1', header=0)
     df_time = df[df.columns[0]][:].values
     df_flux = df[df.columns[1]][:].values
